@@ -31,6 +31,19 @@ const css = `
   .live-prik{width:8px;height:8px;border-radius:50%;background:var(--laas);flex:none}
   .live-prik.paa{background:var(--ok)}
 
+  .filtre{margin:2px 0 4px}
+  .filter-raekke{
+    display:flex;gap:7px;overflow-x:auto;padding:4px 2px 6px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  .filter-raekke::-webkit-scrollbar{display:none}
+  .chip{
+    flex:none;border:1px solid var(--linje);background:var(--kort);color:var(--blyant);
+    border-radius:99px;padding:8px 14px;font-size:14px;font-weight:600;min-height:38px;
+    cursor:pointer;white-space:nowrap;
+  }
+  .chip.valgt{border-color:var(--tape);background:var(--tape-lys);color:var(--tape)}
+
   .sektion{margin-top:22px}
   .sektion-titel{
     display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;
@@ -222,6 +235,8 @@ export default function App() {
   const [udgiftFelt, setUdgiftFelt] = useState({});
   const [listeFelt, setListeFelt] = useState({});
   const [form, setForm] = useState(null);
+  const [rumFilter, setRumFilter] = useState(null);      // null = alle rum
+  const [statusFilter, setStatusFilter] = useState(null); // null = alle statusser
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
   const senesteSlettet = useRef(null);
@@ -241,8 +256,8 @@ export default function App() {
   async function gemAlle(næste) {
     const foer = projekter;
     setProjekter(næste); // optimistisk – realtime bekræfter bagefter
-    const raekker = næste.map(({ id, navn, status, prioritet, kraever, budget, brugt, noter, liste }) =>
-      ({ id, navn, status, prioritet, kraever, budget, brugt, noter, liste }));
+    const raekker = næste.map(({ id, navn, status, prioritet, kraever, budget, brugt, noter, liste, rum }) =>
+      ({ id, navn, status, prioritet, kraever, budget, brugt, noter, liste, rum: rum || "" }));
     const { error: fejl1 } = raekker.length
       ? await supabase.from("projekter").upsert(raekker)
       : { error: null };
@@ -367,8 +382,8 @@ export default function App() {
   function aabnForm(p) {
     setForm(p ? {
       id: p.id, navn: p.navn, kraever: [...(p.kraever || [])],
-      budget: p.budget || "", brugt: p.brugt || "", noter: p.noter || "",
-    } : { id: null, navn: "", kraever: [], budget: "", brugt: "", noter: "" });
+      budget: p.budget || "", brugt: p.brugt || "", noter: p.noter || "", rum: p.rum || "",
+    } : { id: null, navn: "", kraever: [], budget: "", brugt: "", noter: "", rum: "" });
   }
 
   function gemProjekt() {
@@ -379,7 +394,7 @@ export default function App() {
         ...x, navn, kraever: form.kraever,
         budget: parseInt(form.budget, 10) || 0,
         brugt: parseInt(form.brugt, 10) || 0,
-        noter: form.noter,
+        noter: form.noter, rum: form.rum.trim(),
       } : x)));
     } else {
       gemAlle(omnummerer([...projekter, {
@@ -387,7 +402,7 @@ export default function App() {
         kraever: form.kraever,
         budget: parseInt(form.budget, 10) || 0,
         brugt: parseInt(form.brugt, 10) || 0,
-        noter: form.noter, liste: [],
+        noter: form.noter, liste: [], rum: form.rum.trim(),
       }]));
     }
     setForm(null);
@@ -395,9 +410,15 @@ export default function App() {
 
   // ---------- Visning ----------
   const sorteret = omnummerer(projekter);
-  const klar = sorteret.filter(p => p.status !== "faerdig" && !erBlokeret(p));
-  const laast = sorteret.filter(p => p.status !== "faerdig" && erBlokeret(p));
-  const faerdige = sorteret.filter(p => p.status === "faerdig");
+  const rumListe = [...new Set(sorteret.map(p => (p.rum || "").trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "da"));
+  const passerFilter = (p) =>
+    (!rumFilter || (p.rum || "").trim() === rumFilter) &&
+    (!statusFilter || p.status === statusFilter);
+  const synlige = sorteret.filter(passerFilter);
+  const klar = synlige.filter(p => p.status !== "faerdig" && !erBlokeret(p));
+  const laast = synlige.filter(p => p.status !== "faerdig" && erBlokeret(p));
+  const faerdige = synlige.filter(p => p.status === "faerdig");
 
   const skiftAaben = (id) => setAabne(s => {
     const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n;
@@ -422,7 +443,7 @@ export default function App() {
               <span className="kort-meta">
                 {blokeret
                   ? <>Venter på {afh.length === 1 ? `”${afh[0].navn}”` : `${afh.length} projekter`}</>
-                  : (p.budget > 0 ? `${p.brugt || 0} / ${p.budget} kr.` : STATUS_NAVN[p.status])}
+                  : [p.rum, p.budget > 0 ? `${p.brugt || 0} / ${p.budget} kr.` : null].filter(Boolean).join(" · ") || STATUS_NAVN[p.status]}
               </span>
             )}
             <button className={`status-knap ${p.status}`}
@@ -529,17 +550,42 @@ export default function App() {
         {live ? "Synkroniseret live" : "Forbinder …"}
       </p>
 
+      {!indlaeser && projekter.length > 0 && (rumListe.length > 0 || statusFilter || rumFilter) && (
+        <div className="filtre">
+          {rumListe.length > 0 && (
+            <div className="filter-raekke">
+              <button className={`chip ${!rumFilter ? "valgt" : ""}`} onClick={() => setRumFilter(null)}>Alle rum</button>
+              {rumListe.map(r => (
+                <button key={r} className={`chip ${rumFilter === r ? "valgt" : ""}`}
+                  onClick={() => setRumFilter(rumFilter === r ? null : r)}>{r}</button>
+              ))}
+            </div>
+          )}
+          <div className="filter-raekke">
+            <button className={`chip ${!statusFilter ? "valgt" : ""}`} onClick={() => setStatusFilter(null)}>Alle</button>
+            {Object.entries(STATUS_NAVN).map(([k, v]) => (
+              <button key={k} className={`chip ${statusFilter === k ? "valgt" : ""}`}
+                onClick={() => setStatusFilter(statusFilter === k ? null : k)}>{v}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {indlaeser ? (
         <div className="tom">Henter tavlen …</div>
       ) : projekter.length === 0 ? (
         <div className="tom">Tavlen er tom. Tryk på + for at tilføje jeres første projekt.</div>
+      ) : synlige.length === 0 ? (
+        <div className="tom">Ingen projekter matcher filtrene.</div>
       ) : (
         <>
-          <div className="sektion">
-            <div className="sektion-titel">Klar nu <span className="sektion-antal">{klar.length}</span></div>
-            {klar.length === 0 && <div className="tom">Ingen projekter er klar lige nu.</div>}
-            {klar.map(p => <Kort key={p.id} p={p} />)}
-          </div>
+          {(klar.length > 0 || (!rumFilter && !statusFilter)) && (
+            <div className="sektion">
+              <div className="sektion-titel">Klar nu <span className="sektion-antal">{klar.length}</span></div>
+              {klar.length === 0 && <div className="tom">Ingen projekter er klar lige nu.</div>}
+              {klar.map(p => <Kort key={p.id} p={p} />)}
+            </div>
+          )}
           {laast.length > 0 && (
             <div className="sektion">
               <div className="sektion-titel"><Laas size={13} /> Låst <span className="sektion-antal">{laast.length}</span></div>
@@ -564,6 +610,14 @@ export default function App() {
             <div className="felt"><label>Navn</label>
               <input autoFocus value={form.navn} placeholder="fx Mal soveværelset"
                 onChange={e => setForm(f => ({ ...f, navn: e.target.value }))} /></div>
+            <div className="felt"><label>Rum</label>
+              <input list="rum-forslag" value={form.rum} placeholder="fx Stue, Gang, Køkken"
+                onChange={e => setForm(f => ({ ...f, rum: e.target.value }))} />
+              <datalist id="rum-forslag">
+                {rumListe.map(r => <option key={r} value={r} />)}
+              </datalist>
+              <div className="hjaelp">Skriv frit – eksisterende rum foreslås automatisk.</div>
+            </div>
             <div className="felt"><label>Kræver først</label>
               <div className="afh-liste">
                 {sorteret.filter(x => x.id !== form.id).length === 0 && (

@@ -12,6 +12,7 @@ create table if not exists projekter (
   brugt integer not null default 0,
   noter text not null default '',
   liste jsonb not null default '[]',
+  rum text not null default '',
   oprettet timestamptz not null default now(),
   opdateret timestamptz not null default now()
 );

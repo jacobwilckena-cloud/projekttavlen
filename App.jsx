@@ -68,7 +68,7 @@ const css = `
   }
   .kort.laast .prio-tal{background:transparent;border:1px dashed var(--laas)}
   .kort-navn{font-weight:650;font-size:16.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .kort-meta{color:var(--blyant);font-size:13px;flex:none;display:flex;align-items:center;gap:5px}
+  .kort-meta{color:var(--blyant);font-size:13px;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px}
   .pil{flex:none;color:var(--blyant);transition:transform .18s}
   .pil.aaben{transform:rotate(180deg)}
 
@@ -443,7 +443,7 @@ export default function App() {
               <span className="kort-meta">
                 {blokeret
                   ? <>Venter på {afh.length === 1 ? `”${afh[0].navn}”` : `${afh.length} projekter`}</>
-                  : [p.rum, p.budget > 0 ? `${p.brugt || 0} / ${p.budget} kr.` : null].filter(Boolean).join(" · ") || STATUS_NAVN[p.status]}
+                  : (p.budget > 0 ? `${p.brugt || 0} / ${p.budget} kr.` : STATUS_NAVN[p.status])}
               </span>
             )}
             <button className={`status-knap ${p.status}`}

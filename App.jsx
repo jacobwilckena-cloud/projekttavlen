@@ -550,7 +550,7 @@ export default function App() {
         {live ? "Synkroniseret live" : "Forbinder …"}
       </p>
 
-      {!indlaeser && projekter.length > 0 && (rumListe.length > 0 || statusFilter || rumFilter) && (
+      {!indlaeser && projekter.length > 0 && (
         <div className="filtre">
           {rumListe.length > 0 && (
             <div className="filter-raekke">
